@@ -1,0 +1,4 @@
+gserver
+*.o
+*.swp
+*~
