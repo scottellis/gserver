@@ -14,6 +14,10 @@
 #include "commands.h"
 #include "utility.h"
 
+#define IMG_TMPFILE "/tmp/upload-img.xz"
+#define SYSUPGRADE_SCRIPT "/usr/bin/sysupgrade"
+
+
 int save_upload_img(const char *filename, const char *binbuff, int size);
 
 int command_id(const char *str)
@@ -95,7 +99,39 @@ void command_reboot(int sock)
 
 void command_upgrade(int sock)
 {
-    send_response(sock, 0, "Upgrade failed");
+    char *cmdbuff;
+
+    if (access(IMG_TMPFILE, F_OK)) {
+        send_response(sock, 0, "Upgrade image not found");
+        return;
+    }
+
+    if (access(SYSUPGRADE_SCRIPT, X_OK)) {
+        send_response(sock, 0, "sysupgrade is not executable");
+        return;
+    }
+
+    int len = strlen(IMG_TMPFILE) + strlen(SYSUPGRADE_SCRIPT) + 8;
+
+    cmdbuff = malloc(len);
+
+    if (!cmdbuff) {
+        syslog(LOG_WARNING, "malloc in command_upgrade: %m\n");
+        send_response(sock, 0, "malloc error running sysupgrade command");
+        return;
+    }
+
+    memset(cmdbuff, 0, len);
+    sprintf(cmdbuff, "%s %s", SYSUPGRADE_SCRIPT, IMG_TMPFILE);
+
+    int ret = system(cmdbuff);
+
+    free(cmdbuff);
+
+    if (ret)
+        send_response(sock, 0, "Upgrade failed");
+    else
+        send_response(sock, 1, "Upgrade succeeded, need to reboot");
 }
 
 
@@ -313,7 +349,7 @@ void command_download(int sock, const char *args)
         syslog(LOG_WARNING, "malloc in command download: %m\n");
         send_response(sock, 0, "Failed to allocate memory for download");
         return;
-    } 
+    }
 
     pos = 0;
     retries = 0;
@@ -338,7 +374,7 @@ void command_download(int sock, const char *args)
         }
     }
 
-    syslog(LOG_INFO, "Transfer complete, saving file to /tmp/upgrade-img.xz\n");
+    syslog(LOG_INFO, "Transfer complete, saving file to %s\n", IMG_TMPFILE);
 
     if (pos < size) {
         free(binbuff);
@@ -346,8 +382,8 @@ void command_download(int sock, const char *args)
         return;
     }
 
-    if (save_upload_img("/tmp/upload-img.xz", binbuff, size) < 0)
-        send_response(sock, 0, "File save failed"); 
+    if (save_upload_img(IMG_TMPFILE, binbuff, size) < 0)
+        send_response(sock, 0, "File save failed");
     else
         send_response(sock, 1, "File transfer successful");
 
@@ -358,7 +394,7 @@ int save_upload_img(const char *filename, const char *binbuff, int size)
 {
     int pos, len;
 
-    int fd = open(filename, O_RDWR | O_TRUNC | O_CREAT, 0644);   
+    int fd = open(filename, O_RDWR | O_TRUNC | O_CREAT, 0644);
 
     if (fd < 0) {
         syslog(LOG_WARNING, "Error opening tmp img file: %m\n");
@@ -383,7 +419,7 @@ int save_upload_img(const char *filename, const char *binbuff, int size)
     if (pos < size)
         return -1;
 
-    return 0;    
+    return 0;
 }
 
 
