@@ -15,13 +15,17 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <getopt.h>
 
 #include "commands.h"
 #include "utility.h"
 
 #define DEFAULT_DISPATCH_LISTENER_PORT 1234
+#define DEFAULT_INACTIVITY_TIMEOUT_MINUTES 5
 
 volatile sig_atomic_t shutdown_signal = 0;
+int listen_port;
+int inactivity_timeout;
 
 void sig_handler(int sig)
 {
@@ -223,6 +227,7 @@ void dispatch_loop(int dispatch_socket)
     struct timespec timeout;
     char ip[INET_ADDRSTRLEN + 8];
     int c_count = 0;
+    int inactivity_seconds = 0;
 
     syslog(LOG_NOTICE, "starting dispatch_loop");
 
@@ -252,11 +257,65 @@ void dispatch_loop(int dispatch_socket)
                 handle_client(c_sock);
                 close(c_sock);
                 syslog(LOG_INFO, "closed client socket\n");
+                inactivity_seconds = 0;
             }
         }
         else {
             // syslog(LOG_INFO, "dispatch_loop timeout");
             // background processing could be done here
+            if (inactivity_timeout > 0) {
+                inactivity_seconds += 15;
+
+                if (inactivity_seconds >= (inactivity_timeout * 60)) {
+                    syslog(LOG_INFO, "Exiting due to inactivity\n");
+                    break;
+                }
+            }
+        }
+    }
+}
+
+int usage(char *argv_0)
+{
+	printf("Usage: %s [-p port] [-t timeout]\n", argv_0);
+	printf("  -p        The tcp port to listen on, default 1234\n");
+        printf("  -t        Inactivity timeout in minutes after which the\n");
+        printf("            program will shutdown. Default 0 means never shutdown.\n");
+
+        exit(0);
+}
+
+void parse_args(int argc, char **argv)
+{
+    int opt;
+
+    listen_port = DEFAULT_DISPATCH_LISTENER_PORT;
+    inactivity_timeout = DEFAULT_INACTIVITY_TIMEOUT_MINUTES;
+
+    while ((opt = getopt(argc, argv, "p:t:h")) != -1) {
+        switch (opt) {
+        case 'p':
+            listen_port = strtoul(optarg, NULL, 0);
+
+            if (listen_port < 1 || listen_port > 65535) {
+                printf("Invalid listen port: %s\n", optarg);
+                usage(argv[0]);
+            }
+
+            break;
+
+        case 't':
+            inactivity_timeout = strtoul(optarg, NULL, 0);
+
+            if (inactivity_timeout < 0 || inactivity_timeout > 60) {
+                printf("Invalid inactivity timeout: %s\n", optarg);
+                usage(argv[0]);
+            }
+
+            break;
+
+        default:
+            usage(argv[0]);
         }
     }
 }
@@ -264,6 +323,9 @@ void dispatch_loop(int dispatch_socket)
 int main(int argc, char ** argv)
 {
     int dispatch_socket;
+
+    // will exit program if errors found
+    parse_args(argc, argv);
 
     if (daemon(0, 0)) {
         perror("daemon");
@@ -276,7 +338,7 @@ int main(int argc, char ** argv)
     if (add_signal_handlers() < 0)
         exit(1);
 
-    dispatch_socket = start_dispatch_listener(DEFAULT_DISPATCH_LISTENER_PORT);
+    dispatch_socket = start_dispatch_listener(listen_port);
 
     if (dispatch_socket < 0)
         exit(1);
