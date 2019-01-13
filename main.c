@@ -192,6 +192,7 @@ void handle_client(int sock)
         break;
 
     case CMD_DOWNLOAD:
+    case CMD_DOWNLOAD_SIG:
         memset(args, 0, sizeof(args));
 
         ret = read_line(sock, args, MAX_COMMAND_ARG);
@@ -199,7 +200,7 @@ void handle_client(int sock)
         if (ret < 0)
             send_response(sock, 0, "Error reading download size");
         else
-            command_download(sock, args);
+            command_download(sock, cmd, args);
 
         break;
 

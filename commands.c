@@ -14,7 +14,8 @@
 #include "commands.h"
 #include "utility.h"
 
-#define IMG_TMPFILE "/tmp/upload-img.xz"
+#define IMG_TMPFILE "/tmp/upgrade-img.tar.xz"
+#define SIG_TMPFILE "/tmp/upload-img.tar.xz.sig"
 #define SYSUPGRADE_SCRIPT "/usr/bin/sysupgrade"
 
 
@@ -37,6 +38,8 @@ int command_id(const char *str)
             cmd = CMD_UPGRADE;
         else if (!strncasecmp(str, "reboot", 6))
             cmd = CMD_REBOOT;
+        else if (!strncasecmp(str, "download-sig", 12))
+            cmd = CMD_DOWNLOAD_SIG;
         else
             cmd = CMD_UNKNOWN;
     }
@@ -93,7 +96,12 @@ void command_build(int sock)
 void command_reboot(int sock)
 {
     send_response(sock, 1, "Rebooting now");
-    system("/sbin/reboot");
+
+    int ret = system("/sbin/reboot");
+
+    if (ret)
+        syslog(LOG_WARNING, "system reboot returned error: %d\n", ret);
+
     raise(SIGINT);
 }
 
@@ -326,10 +334,11 @@ void command_netconfig(int sock, const char *args)
     send_response(sock, 1, NULL);
 }
 
-void command_download(int sock, const char *args)
+void command_download(int sock, int cmd, const char *args)
 {
     int pos, len, size, retries;
     char *binbuff = NULL;
+    char *fname;
 
     if (!args || !*args) {
         send_response(sock, 0, "NULL size arg for download");
@@ -374,15 +383,20 @@ void command_download(int sock, const char *args)
         }
     }
 
-    syslog(LOG_INFO, "Transfer complete, saving file to %s\n", IMG_TMPFILE);
-
     if (pos < size) {
         free(binbuff);
         send_response(sock, 0, "File transfer timeout");
         return;
     }
 
-    if (save_upload_img(IMG_TMPFILE, binbuff, size) < 0)
+    if (cmd == CMD_DOWNLOAD)
+        fname = IMG_TMPFILE;
+    else
+        fname = SIG_TMPFILE;
+
+    syslog(LOG_INFO, "Transfer complete, saving file to %s\n", fname);
+
+    if (save_upload_img(fname, binbuff, size) < 0)
         send_response(sock, 0, "File save failed");
     else
         send_response(sock, 1, "File transfer successful");
@@ -421,22 +435,4 @@ int save_upload_img(const char *filename, const char *binbuff, int size)
 
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
