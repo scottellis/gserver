@@ -32,14 +32,15 @@ int command_id(const char *str)
             cmd = CMD_BUILD;
         else if (!strncasecmp(str, "netconfig", 9))
             cmd = CMD_NETCONFIG;
+        // check this before download
+        else if (!strncasecmp(str, "download-sig", 12))
+            cmd = CMD_DOWNLOAD_SIG;
         else if (!strncasecmp(str, "download", 8))
             cmd = CMD_DOWNLOAD;
         else if (!strncasecmp(str, "upgrade", 7))
             cmd = CMD_UPGRADE;
         else if (!strncasecmp(str, "reboot", 6))
             cmd = CMD_REBOOT;
-        else if (!strncasecmp(str, "download-sig", 12))
-            cmd = CMD_DOWNLOAD_SIG;
         else
             cmd = CMD_UNKNOWN;
     }
