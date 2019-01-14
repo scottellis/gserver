@@ -15,7 +15,7 @@
 #include "utility.h"
 
 #define IMG_TMPFILE "/tmp/upgrade-img.tar.xz"
-#define SIG_TMPFILE "/tmp/upload-img.tar.xz.sig"
+#define SIG_TMPFILE "/tmp/upgrade-img.tar.xz.sig"
 #define SYSUPGRADE_SCRIPT "/usr/bin/sysupgrade"
 
 
