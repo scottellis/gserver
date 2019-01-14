@@ -166,6 +166,8 @@ void handle_client(int sock)
 
     int cmd = command_id(rx);
 
+    syslog(LOG_INFO, "handle_client(): cmd: %d\n", cmd);
+
     switch(cmd) {
     case CMD_UNKNOWN:
         send_response(sock, 0, "Unknown command");

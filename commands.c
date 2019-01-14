@@ -340,6 +340,11 @@ void command_download(int sock, int cmd, const char *args)
     char *binbuff = NULL;
     char *fname;
 
+    if (cmd == CMD_DOWNLOAD)
+        syslog(LOG_INFO, "Running CMD_DOWNLOAD\n");
+    else
+        syslog(LOG_INFO, "Running CMD_DOWNLOAD_SIG\n");
+
     if (!args || !*args) {
         send_response(sock, 0, "NULL size arg for download");
         return;
@@ -362,11 +367,6 @@ void command_download(int sock, int cmd, const char *args)
 
     pos = 0;
     retries = 0;
-
-    if (cmd == CMD_DOWNLOAD)
-        syslog(LOG_INFO, "Running CMD_DOWNLOAD\n");
-    else
-        syslog(LOG_INFO, "Running CMD_DOWNLOAD_SIG\n");
 
     syslog(LOG_INFO, "Starting transfer of %d bytes\n", size);
 
