@@ -14,8 +14,7 @@
 #include "commands.h"
 #include "utility.h"
 
-#define IMG_TMPFILE "/tmp/upgrade-img.tar.xz"
-#define SIG_TMPFILE "/tmp/upgrade-img.tar.xz.sig"
+#define FW_TMPFILE "/tmp/upgrade.fw"
 #define SYSUPGRADE_SCRIPT "/usr/bin/sysupgrade"
 
 
@@ -32,9 +31,6 @@ int command_id(const char *str)
             cmd = CMD_BUILD;
         else if (!strncasecmp(str, "netconfig", 9))
             cmd = CMD_NETCONFIG;
-        // check this before download
-        else if (!strncasecmp(str, "download-sig", 12))
-            cmd = CMD_DOWNLOAD_SIG;
         else if (!strncasecmp(str, "download", 8))
             cmd = CMD_DOWNLOAD;
         else if (!strncasecmp(str, "upgrade", 7))
@@ -110,7 +106,7 @@ void command_upgrade(int sock)
 {
     char *cmdbuff;
 
-    if (access(IMG_TMPFILE, F_OK)) {
+    if (access(FW_TMPFILE, F_OK)) {
         send_response(sock, 0, "Upgrade image not found");
         return;
     }
@@ -120,7 +116,7 @@ void command_upgrade(int sock)
         return;
     }
 
-    int len = strlen(IMG_TMPFILE) + strlen(SYSUPGRADE_SCRIPT) + 8;
+    int len = strlen(FW_TMPFILE) + strlen(SYSUPGRADE_SCRIPT) + 8;
 
     cmdbuff = malloc(len);
 
@@ -131,7 +127,7 @@ void command_upgrade(int sock)
     }
 
     memset(cmdbuff, 0, len);
-    sprintf(cmdbuff, "%s %s", SYSUPGRADE_SCRIPT, IMG_TMPFILE);
+    sprintf(cmdbuff, "%s %s", SYSUPGRADE_SCRIPT, FW_TMPFILE);
 
     int ret = system(cmdbuff);
 
@@ -142,7 +138,6 @@ void command_upgrade(int sock)
     else
         send_response(sock, 1, "Upgrade succeeded, need to reboot");
 }
-
 
 int write_netconfig_interfaces(const char *ip, const char *nm, const char *gw)
 {
@@ -335,16 +330,12 @@ void command_netconfig(int sock, const char *args)
     send_response(sock, 1, NULL);
 }
 
-void command_download(int sock, int cmd, const char *args)
+void command_download(int sock, const char *args)
 {
     int pos, len, size, retries;
     char *binbuff = NULL;
-    char *fname;
 
-    if (cmd == CMD_DOWNLOAD)
-        syslog(LOG_INFO, "Running CMD_DOWNLOAD\n");
-    else
-        syslog(LOG_INFO, "Running CMD_DOWNLOAD_SIG\n");
+    syslog(LOG_INFO, "Running CMD_DOWNLOAD\n");
 
     if (!args || !*args) {
         send_response(sock, 0, "NULL size arg for download");
@@ -395,14 +386,9 @@ void command_download(int sock, int cmd, const char *args)
         return;
     }
 
-    if (cmd == CMD_DOWNLOAD)
-        fname = IMG_TMPFILE;
-    else
-        fname = SIG_TMPFILE;
+    syslog(LOG_INFO, "Transfer complete, saving file to %s\n", FW_TMPFILE);
 
-    syslog(LOG_INFO, "Transfer complete, saving file to %s\n", fname);
-
-    if (save_upload_img(fname, binbuff, size) < 0)
+    if (save_upload_img(FW_TMPFILE, binbuff, size) < 0)
         send_response(sock, 0, "File save failed");
     else
         send_response(sock, 1, "File transfer successful");
